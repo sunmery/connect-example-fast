@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package say.v1;
+
+option go_package = "connect-go-example/api/say/v1;say";
+
+message SayRequest {
+  string name = 1;
+}
+
+message SayResponse {
+  string reply = 1;
+}
+
+service UserService {
+  rpc SayHello(SayRequest) returns(SayResponse){}
+}
