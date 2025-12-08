@@ -29,8 +29,8 @@ var (
 	serviceName           = flag.String("name", "name", "服务名称")
 	serviceVersion        = flag.String("version", "dev", "服务版本号")
 	deploymentEnvironment = flag.String("environment", "dev", "部署环境")
-	configCenter          = flag.String("config-center", "localhost:8500", "配置中心地址")
-	configPath            = flag.String("config-path", "organization/product/prod.yml", "配置路径")
+	configCenter          = flag.String("config-center", "", "配置中心地址")
+	configPath            = flag.String("config-path", "", "配置路径")
 	configCenterToken     = flag.String("config-center-token", "", "配置中心令牌")
 )
 
