@@ -69,7 +69,7 @@ func NewApp(serviceName, serviceVersion, deploymentEnvironment string) *fx.App {
 		fmt.Printf("Warn: not get host:%v", err)
 	}
 	appInfo := meta.AppInfo{
-		ID:          fmt.Sprintf("%s-%s", serviceName, uuid.New().String()),
+		ID:          uuid.New().String(),
 		Name:        serviceName,
 		Host:        host,
 		Version:     serviceVersion,
