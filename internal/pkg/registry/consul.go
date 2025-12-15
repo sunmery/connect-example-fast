@@ -1,6 +1,7 @@
 package registry
 
 import (
+	confv1 "connect-go-example/internal/conf/v1"
 	"connect-go-example/internal/pkg/meta"
 	"context"
 	"fmt"
@@ -8,8 +9,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	confv1 "connect-go-example/internal/conf/v1"
 
 	"github.com/hashicorp/consul/api"
 	"go.uber.org/fx"
@@ -24,12 +23,13 @@ const (
 )
 
 type ConsulRegistry struct {
-	client       *api.Client
-	logger       *zap.Logger
-	serviceID    string
-	serviceName  string
-	registerHost string
-	servicePort  int
+	client  *api.Client
+	logger  *zap.Logger
+	ID      string
+	Name    string
+	Version string
+	Host    string
+	Port    int
 }
 
 // Module 提供 Fx 模块
@@ -55,15 +55,15 @@ var Module = fx.Module("registry",
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse service address: %w", err)
 			}
-			servicePort, err := strconv.Atoi(portStr)
+			Port, err := strconv.Atoi(portStr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse service port: %w", err)
 			}
 
 			// 获取 Pod 或机器的 IP 地址
-			logger.Info("Initializing Consul registry", zap.String("addr", consulAddr), zap.String("registerHost", appInfo.Host))
+			logger.Info("Initializing Consul registry", zap.String("addr", consulAddr), zap.String("Host", appInfo.Host))
 
-			reg, err := NewConsulRegistry(consulAddr, logger, appInfo.ID, appInfo.Name, servicePort, serviceScheme, appInfo.Host)
+			reg, err := NewConsulRegistry(consulAddr, appInfo.ID, appInfo.Name, appInfo.Version, Port, serviceScheme, appInfo.Host, logger)
 			if err != nil {
 				logger.Warn("Failed to initialize Consul registry, service discovery disabled", zap.Error(err))
 				return nil, nil
@@ -97,9 +97,9 @@ var Module = fx.Module("registry",
 	),
 )
 
-func NewConsulRegistry(consulAddr string, logger *zap.Logger, serviceID, serviceName string, servicePort int, serviceScheme string, registerHost string) (*ConsulRegistry, error) {
+func NewConsulRegistry(addr, ID, Name, Version string, Port int, serviceScheme string, Host string, logger *zap.Logger, ) (*ConsulRegistry, error) {
 	config := &api.Config{
-		Address: consulAddr,
+		Address: addr,
 		Scheme:  serviceScheme,
 	}
 	client, err := api.NewClient(config)
@@ -108,23 +108,23 @@ func NewConsulRegistry(consulAddr string, logger *zap.Logger, serviceID, service
 	}
 
 	return &ConsulRegistry{
-		client:       client,
-		logger:       logger,
-		serviceID:    serviceID,
-		serviceName:  serviceName,
-		servicePort:  servicePort,
-		registerHost: registerHost,
+		client: client,
+		logger: logger,
+		ID:     ID,
+		Name:   fmt.Sprintf("%s-%s", Name, Version),
+		Port:   Port,
+		Host:   Host,
 	}, nil
 }
 
 // Register 使用 TTL 健康检查注册服务
 func (r *ConsulRegistry) Register() error {
 	reg := &api.AgentServiceRegistration{
-		ID:      r.serviceID,
-		Name:    r.serviceName,
-		Address: r.registerHost,
-		Port:    r.servicePort,
-		Tags:    []string{r.serviceName, "fx", "ttl"}, // 增加 'ttl' tag
+		ID:      r.ID,
+		Name:    r.Name,
+		Address: r.Host,
+		Port:    r.Port,
+		Tags:    []string{r.Name, "fx", "ttl"}, // 增加 'ttl' tag
 		Check: &api.AgentServiceCheck{
 			// 1. 使用 TTL 替换 HTTP/TCP 检查
 			TTL: TtlDuration,
@@ -138,7 +138,7 @@ func (r *ConsulRegistry) Register() error {
 		return err
 	}
 
-	r.logger.Info("Service registered with Consul using TTL check", zap.String("id", r.serviceID), zap.String("ttl", TtlDuration))
+	r.logger.Info("Service registered with Consul using TTL check", zap.String("id", r.ID), zap.String("ttl", TtlDuration))
 	return nil
 }
 
@@ -147,8 +147,8 @@ func (r *ConsulRegistry) TtlCheckPinger(ctx context.Context) {
 	ticker := time.NewTicker(TtlPingInterval)
 	defer ticker.Stop()
 
-	// Consul Agent 要求 CheckID 必须是 "service:<ServiceID>" 的格式
-	checkID := fmt.Sprintf("service:%s", r.serviceID)
+	// Consul Agent 要求 CheckID 必须是 "service:<ID>" 的格式
+	checkID := fmt.Sprintf("service:%s", r.ID)
 
 	r.logger.Info("Starting TTL pinger", zap.Duration("interval", TtlPingInterval), zap.String("checkID", checkID))
 
@@ -163,13 +163,13 @@ func (r *ConsulRegistry) TtlCheckPinger(ctx context.Context) {
 			if err != nil {
 				// 记录错误，但不退出 Pinger，因为这可能是暂时的网络问题
 				// 如果长时间失败，Consul Agent 会将服务标记为 Critical
-				r.logger.Error("Failed to update Consul TTL", zap.Error(err), zap.String("serviceID", r.serviceID))
+				r.logger.Error("Failed to update Consul TTL", zap.Error(err), zap.String("ID", r.ID))
 			}
 		}
 	}
 }
 
 func (r *ConsulRegistry) Deregister() error {
-	r.logger.Info("Deregistering service from Consul", zap.String("id", r.serviceID))
-	return r.client.Agent().ServiceDeregister(r.serviceID)
+	r.logger.Info("Deregistering service from Consul", zap.String("id", r.ID))
+	return r.client.Agent().ServiceDeregister(r.ID)
 }
