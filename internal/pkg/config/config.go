@@ -18,11 +18,8 @@ var (
 		fx.Provide(
 			// 提供配置加载函数
 			func() (*confv1.Bootstrap, error) {
-				// 从环境变量获取配置路径，如果没有设置则使用默认路径
-				configPath := getConfigPath()
-
 				// 初始化配置，获取consul客户端
-				conf := Init(configPath)
+				conf := Init()
 				if conf != nil {
 					fmt.Printf("Configuration loaded successfully from consul\n")
 					return conf, nil
@@ -65,7 +62,7 @@ func updateConfig(newConfig map[string]interface{}) {
 }
 
 // Init 初始化配置加载，只从consul配置中心获取，并启动配置监听
-func Init(configPath string) *confv1.Bootstrap {
+func Init() *confv1.Bootstrap {
 	// 从环境变量获取consul配置
 	consulAddr := os.Getenv("CONFIG_CENTER")
 	if consulAddr == "" {
