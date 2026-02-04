@@ -62,7 +62,6 @@ func updateConfig(newConfig map[string]interface{}) {
 
 	// 更新全局配置
 	*conf = *newBootstrap
-	fmt.Printf("Configuration updated from consul\n")
 }
 
 // Init 初始化配置加载，只从consul配置中心获取，并启动配置监听
