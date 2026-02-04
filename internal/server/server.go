@@ -10,7 +10,6 @@ import (
 
 	"connectrpc.com/connect"
 	connectcors "connectrpc.com/cors"
-	"connectrpc.com/otelconnect"
 	"github.com/rs/cors"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -30,31 +29,20 @@ func NewHTTPServer(
 	userv1Service userv1connect.UserServiceHandler,
 
 	logger *zap.Logger,
-	monitoringMiddleware func(http.Handler) http.Handler,
+	connectOptions []connect.HandlerOption,
 	connectInterceptor connect.UnaryInterceptorFunc,
 ) *http.Server {
-	// 创建 OTel Connect 拦截器实例
-	otelInterceptor, err := otelconnect.NewInterceptor(
-		otelconnect.WithoutServerPeerAttributes(),
-	)
-	if err != nil {
-		logger.Fatal("failed to create otel interceptor", zap.Error(err))
-	}
-
-	// 将 OTel 拦截器和监控拦截器加入到 Connect 拦截器列表中
-	interceptors := connect.WithInterceptors(otelInterceptor, connectInterceptor)
-
 	// 将拦截器传递给 Service Handler
 	userv1connectPath, userv1connectHandler := userv1connect.NewUserServiceHandler(
 		userv1Service,
-		interceptors,
+		connectOptions...,
 	)
 
 	mux := http.NewServeMux()
 	mux.Handle(userv1connectPath, userv1connectHandler)
 
 	// 创建处理器链：监控中间件 -> CORS -> HTTP/2
-	handlerChain := monitoringMiddleware(withCORS(mux))
+	handlerChain := withCORS(withCORS(mux))
 
 	p := new(http.Protocols)
 	p.SetHTTP1(true)
