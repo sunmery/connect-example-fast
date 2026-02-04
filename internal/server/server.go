@@ -30,7 +30,6 @@ func NewHTTPServer(
 
 	logger *zap.Logger,
 	connectOptions []connect.HandlerOption,
-	connectInterceptor connect.UnaryInterceptorFunc,
 ) *http.Server {
 	// 将拦截器传递给 Service Handler
 	userv1connectPath, userv1connectHandler := userv1connect.NewUserServiceHandler(
@@ -42,7 +41,7 @@ func NewHTTPServer(
 	mux.Handle(userv1connectPath, userv1connectHandler)
 
 	// 创建处理器链：监控中间件 -> CORS -> HTTP/2
-	handlerChain := withCORS(withCORS(mux))
+	handlerChain := withCORS(mux)
 
 	p := new(http.Protocols)
 	p.SetHTTP1(true)
