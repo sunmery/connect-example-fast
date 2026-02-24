@@ -2,16 +2,22 @@
 VERSION ?= dev
 GOIMAGE ?= golang:1.25.1-alpine3.22
 GOOS ?= linux
-GOARCH ?= amd64
+GOARCH ?= arm64
 CGOENABLED ?= 0
 
 # 动态变量
 SERVICE = $(shell basename $$PWD)
 DOCKER_IMAGE=connect/$(SERVICE):$(VERSION)
-REPOSITORY = sumery/$(SERVICE)
-REGISTER = ccr.ccs.tencentyun.com
+REPOSITORY = ecommerce/$(SERVICE)
+REGISTER = harbor.apikv.com:5443
 ARM64=linux/arm64
 AMD64=linux/amd64
+
+.PHONY: run
+run:
+	CONFIG_CENTER=http://apikv.com:8500 \
+    CONFIG_PATH=ecommerce/search/prod.yml \
+	go run cmd/server/main.go
 
 .PHONY: k8s-dev
 k8s-dev:
@@ -20,14 +26,6 @@ k8s-dev:
 .PHONY: k8s-prod
 k8s-prod:
 	kubectl apply -f deploy/prod
-
-
-.PHONY: run
-run:
-	go run cmd/server/main.go \
-	-config-center=http://localhost:8500 \
-	-config-path=configs/config.yaml \
-	-config-center-token=my-token
 
 .PHONY: test
 test:
@@ -39,17 +37,20 @@ sqlc:
 
 .PHONY: api
 api:
-	buf generate --template buf.gen.yaml
-	buf generate --template buf.gen.ts.yaml
+	# 切换到backend目录运行buf命令，确保proto文件路径在context directory内
+	cd ../../ && buf generate --template buf.gen.yaml --path api
+	cd ../../ && buf generate --template buf.gen.ts.yaml --path api
 
 .PHONY: generate
 generate:
-	buf generate --template buf.gen.yaml
-	buf generate --template buf.gen.ts.yaml
+	# 切换到backend目录运行buf命令，确保proto文件路径在context directory内
+	cd ../../ && buf generate --template buf.gen.yaml --path api
+	cd ../../ && buf generate --template buf.gen.ts.yaml --path api
 
-.PHONY: conf
-conf:
-	buf generate --template buf.gen.yaml
+.PHONY: conf 
+conf: 
+	 # 切换到backend目录运行buf命令，确保proto文件路径在context directory内 
+	 cd ../../ && buf generate --template buf.gen.yaml --path application/$(SERVICE)/internal/conf
 
 .PHONY: docker-build
 # 使用 docker 构建镜像
@@ -57,17 +58,17 @@ docker-build:
 	@echo "构建的微服务: $(SERVICE)"
 	@echo "系统: $(GOOS) | CPU架构: $(GOARCH)"
 	@echo "镜像名: $(REPOSITORY):$(VERSION)"
-	docker build . \
-	  -f ./Dockerfile \
-	  --progress=plain \
-	  -t ecommerce/$(SERVICE):$(VERSION) \
-	  --build-arg SERVICE=$(SERVICE) \
-	  --build-arg CGOENABLED=$(CGOENABLED) \
-	  --build-arg GOIMAGE=$(GOIMAGE) \
-	  --build-arg GOOS=$(GOOS) \
-	  --build-arg GOARCH=$(GOARCH) \
-	  --build-arg VERSION=$(VERSION) \
-	  --platform $(GOOS)/$(GOARCH)
+	cd ../.. && docker build . \
+      -f ./application/$(SERVICE)/Dockerfile \
+      --progress=plain \
+      -t ecommerce/$(SERVICE):dev \
+      --build-arg SERVICE=$(SERVICE) \
+      --build-arg CGOENABLED=0 \
+      --build-arg GOIMAGE=golang:1.25.1-alpine3.22 \
+      --build-arg GOOS=linux \
+      --build-arg GOARCH=amd64 \
+      --build-arg VERSION=dev \
+      --platform linux/amd64
 
 # 使用方式: make docker-push SERVICE=微服务名
 .PHONY: docker-push
@@ -93,15 +94,14 @@ docker-deployx:
 	@echo "平台1: $(ARM64)"
 	@echo "平台2: $(AMD64)"
 	@echo "镜像名: $(REPOSITORY):$(VERSION)"
-	docker buildx build . \
-	  -f ./Dockerfile \
+	cd ../.. && docker buildx build . \
+	  -f ./application/$(SERVICE)/Dockerfile \
 	  --progress=plain \
 	  -t $(REGISTER)/$(REPOSITORY):$(VERSION) \
 	  --build-arg SERVICE=$(SERVICE) \
 	  --build-arg CGOENABLED=$(CGOENABLED) \
 	  --build-arg GOIMAGE=$(GOIMAGE) \
 	  --build-arg VERSION=$(VERSION) \
-	  --build-arg SERVICE=server \
 	  --platform $(ARM64),$(AMD64) \
 	  --push \
 	  --cache-from type=registry,ref=$(REGISTER)/$(REPOSITORY):cache \

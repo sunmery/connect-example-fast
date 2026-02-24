@@ -26,11 +26,13 @@ import (
 )
 
 var (
-	serviceName           = flag.String("name", "name", "服务名称")
-	serviceVersion        = flag.String("version", "dev", "服务版本号")
+	// 优先读取环境变量，如果没有则使用默认值
+	serviceName  = flag.String("name", getEnv("SERVICE_NAME", "product-core"), "服务名称")
+	configCenter = flag.String("config-center", getEnv("CONFIG_CENTER", ""), "配置中心地址")
+	configPath   = flag.String("config-path", getEnv("CONFIG_PATH", ""), "配置路径")
+
+	serviceVersion        = flag.String("version", "v1", "服务版本号")
 	deploymentEnvironment = flag.String("environment", "dev", "部署环境")
-	configCenter          = flag.String("config-center", "", "配置中心地址 eg. localhost:8500")
-	configPath            = flag.String("config-path", "", "配置路径 eg. organization/product/prod.yml")
 	configCenterToken     = flag.String("config-center-token", "", "配置中心令牌")
 )
 
@@ -157,4 +159,11 @@ func setConsulEnv() {
 	if *configCenterToken != "" {
 		os.Setenv("CONFIG_CENTER_TOKEN", *configCenterToken)
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }
