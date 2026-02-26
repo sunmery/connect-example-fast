@@ -13,10 +13,16 @@ REGISTER = harbor.apikv.com:5443
 ARM64=linux/arm64
 AMD64=linux/amd64
 
+.PHONY: dev
+ dev:
+	CONFIG_CENTER=http://localhost:8500 \
+    CONFIG_PATH=ecommerce/$(SERVICE)/prod.yml \
+	go run cmd/server/main.go
+
 .PHONY: run
 run:
 	CONFIG_CENTER=http://apikv.com:8500 \
-    CONFIG_PATH=ecommerce/search/prod.yml \
+    CONFIG_PATH=ecommerce/$(SERVICE)/prod.yml \
 	go run cmd/server/main.go
 
 .PHONY: k8s-dev
